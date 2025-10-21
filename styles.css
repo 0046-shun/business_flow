@@ -1,0 +1,263 @@
+/* Custom CSS for Business Flow Creator */
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: #f8f9fa;
+}
+
+.navbar-brand {
+    font-weight: bold;
+}
+
+.canvas-container {
+    padding: 20px;
+    background-color: white;
+    border-radius: 8px;
+    margin: 20px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    overflow: auto;
+}
+
+.canvas-wrapper {
+    position: relative;
+    overflow: auto;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+    background-color: white;
+}
+
+#flowCanvas {
+    display: block;
+    background-color: white;
+    cursor: crosshair;
+}
+
+#flowCanvas.dragging {
+    cursor: grabbing;
+}
+
+#flowCanvas.resizing {
+    cursor: nw-resize;
+}
+
+
+.template-btn.active {
+    background-color: #0d6efd;
+    color: white;
+}
+
+.template-btn.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+.template-btn:hover {
+    transform: scale(1.02);
+}
+
+.template-btn {
+    transition: all 0.2s ease;
+    text-align: left;
+    font-size: 0.85rem;
+}
+
+.template-btn i {
+    margin-right: 5px;
+}
+
+/* Grid styles */
+.grid-line {
+    stroke: #e9ecef;
+    stroke-width: 1;
+}
+
+.grid-line.snap {
+    stroke: #dee2e6;
+    stroke-width: 2;
+}
+
+/* Flow element styles */
+.flow-element {
+    cursor: move;
+    user-select: none;
+}
+
+.flow-element.selected {
+    stroke: #0d6efd;
+    stroke-width: 3;
+}
+
+.flow-element:hover {
+    stroke: #6c757d;
+    stroke-width: 2;
+}
+
+/* Card styles */
+.flow-card {
+    fill: #007bff;
+    stroke: #0056b3;
+    stroke-width: 2;
+    rx: 8;
+    ry: 8;
+}
+
+.flow-card.selected {
+    stroke: #0d6efd;
+    stroke-width: 3;
+}
+
+/* Arrow styles */
+.flow-arrow {
+    stroke: #6c757d;
+    stroke-width: 3;
+    fill: none;
+    marker-end: url(#arrowhead);
+}
+
+.flow-arrow.selected {
+    stroke: #0d6efd;
+    stroke-width: 4;
+}
+
+/* Branch styles */
+.flow-branch {
+    fill: #ffc107;
+    stroke: #e0a800;
+    stroke-width: 2;
+}
+
+.flow-branch.selected {
+    stroke: #0d6efd;
+    stroke-width: 3;
+}
+
+/* Text styles */
+.flow-text {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    font-size: 14px;
+    text-anchor: middle;
+    dominant-baseline: middle;
+    pointer-events: none;
+    user-select: none;
+}
+
+/* Connection line styles */
+.connection-line {
+    stroke: #6c757d;
+    stroke-width: 2;
+    fill: none;
+    stroke-dasharray: 5,5;
+}
+
+.connection-line.selected {
+    stroke: #0d6efd;
+    stroke-width: 3;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+    .col-md-2 {
+        position: fixed;
+        top: 0;
+        left: -100%;
+        height: 100vh;
+        z-index: 1000;
+        transition: left 0.3s;
+    }
+    
+    .col-md-2.show {
+        left: 0;
+    }
+    
+    .col-md-8 {
+        width: 100%;
+    }
+    
+    .canvas-container {
+        margin: 10px;
+        padding: 10px;
+    }
+    
+    #flowCanvas {
+        width: 100%;
+        height: auto;
+    }
+}
+
+/* Loading animation */
+.loading {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    border: 3px solid #f3f3f3;
+    border-top: 3px solid #3498db;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Toast notifications */
+.toast-container {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 1050;
+}
+
+/* Function card styles */
+.flow-function {
+    fill: #17a2b8;
+    stroke: #138496;
+    stroke-width: 2;
+    rx: 6;
+    ry: 6;
+}
+
+.flow-function.selected {
+    stroke: #0d6efd;
+    stroke-width: 3;
+}
+
+/* Resize handles */
+.resize-handle {
+    fill: #0d6efd;
+    stroke: #fff;
+    stroke-width: 2;
+    cursor: nw-resize;
+}
+
+.resize-handle:hover {
+    fill: #0056b3;
+}
+
+/* Canvas cursor states */
+#flowCanvas.resizing {
+    cursor: nw-resize !important;
+}
+
+#flowCanvas.moving {
+    cursor: move !important;
+}
+
+/* Inline text editing */
+.text-edit-overlay {
+    position: absolute;
+    background: white;
+    border: 2px solid #0d6efd;
+    border-radius: 4px;
+    padding: 4px 8px;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    font-size: 14px;
+    min-width: 100px;
+    z-index: 1000;
+}
+
+.text-edit-overlay:focus {
+    outline: none;
+    border-color: #0056b3;
+}

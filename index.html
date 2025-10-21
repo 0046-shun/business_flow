@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Business Flow Creator</title>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <!-- Navigation Bar -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="#">Business Flow Creator</a>
+            <div class="navbar-nav ms-auto">
+                <button class="btn btn-outline-light me-2" id="saveBtn">
+                    <i class="bi bi-save"></i> 保存
+                </button>
+                <button class="btn btn-outline-light me-2" id="loadBtn">
+                    <i class="bi bi-folder-open"></i> 読み込み
+                </button>
+                <button class="btn btn-outline-light me-2" id="exportBtn">
+                    <i class="bi bi-download"></i> エクスポート
+                </button>
+                <button class="btn btn-outline-light" id="clearBtn">
+                    <i class="bi bi-trash"></i> クリア
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid">
+        <div class="row">
+            <!-- Tool Palette -->
+            <div class="col-md-2 bg-light border-end">
+                <div class="p-3">
+                    <h5 class="mb-3">ツール</h5>
+                    
+                    <!-- Edit Mode -->
+                    <div class="mb-4">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="editModeToggle">
+                            <label class="form-check-label" for="editModeToggle">
+                                <strong>編集モード</strong>
+                            </label>
+                        </div>
+                        <small class="text-muted">編集モード時は新しいアイテムの追加が無効になります</small>
+                    </div>
+                    
+                    <!-- Flow Elements -->
+                    <div class="mb-4">
+                        <h6>フロー要素</h6>
+                        
+                        <!-- Cards -->
+                        <div class="mb-3">
+                            <small class="text-muted">カード</small>
+                            <div class="d-grid gap-1">
+                                <button class="btn btn-sm btn-outline-primary template-btn" data-type="card" data-template="process">
+                                    <i class="bi bi-gear"></i> プロセス
+                                </button>
+                                <button class="btn btn-sm btn-outline-primary template-btn" data-type="card" data-template="decision">
+                                    <i class="bi bi-question-circle"></i> 判断
+                                </button>
+                                <button class="btn btn-sm btn-outline-primary template-btn" data-type="card" data-template="start">
+                                    <i class="bi bi-play-circle"></i> 開始
+                                </button>
+                                <button class="btn btn-sm btn-outline-primary template-btn" data-type="card" data-template="end">
+                                    <i class="bi bi-stop-circle"></i> 終了
+                                </button>
+                                <button class="btn btn-sm btn-outline-primary template-btn" data-type="card" data-template="document">
+                                    <i class="bi bi-file-text"></i> 文書
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Arrows -->
+                        <div class="mb-3">
+                            <small class="text-muted">矢印</small>
+                            <div class="d-grid gap-1">
+                                <button class="btn btn-sm btn-outline-success template-btn" data-type="arrow" data-template="right">
+                                    <i class="bi bi-arrow-right"></i> 右向き
+                                </button>
+                                <button class="btn btn-sm btn-outline-success template-btn" data-type="arrow" data-template="down">
+                                    <i class="bi bi-arrow-down"></i> 下向き
+                                </button>
+                                <button class="btn btn-sm btn-outline-success template-btn" data-type="arrow" data-template="left">
+                                    <i class="bi bi-arrow-left"></i> 左向き
+                                </button>
+                                <button class="btn btn-sm btn-outline-success template-btn" data-type="arrow" data-template="up">
+                                    <i class="bi bi-arrow-up"></i> 上向き
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Branches -->
+                        <div class="mb-3">
+                            <small class="text-muted">分岐</small>
+                            <div class="d-grid gap-1">
+                                <button class="btn btn-sm btn-outline-warning template-btn" data-type="branch" data-template="diamond">
+                                    <i class="bi bi-diamond"></i> ダイヤモンド
+                                </button>
+                                <button class="btn btn-sm btn-outline-warning template-btn" data-type="branch" data-template="circle">
+                                    <i class="bi bi-circle"></i> 円形
+                                </button>
+                                <button class="btn btn-sm btn-outline-warning template-btn" data-type="branch" data-template="hexagon">
+                                    <i class="bi bi-hexagon"></i> 六角形
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Function Cards -->
+                        <div class="mb-3">
+                            <small class="text-muted">機能カード</small>
+                            <div class="d-grid gap-1">
+                                <button class="btn btn-sm btn-outline-info template-btn" data-type="function" data-template="database">
+                                    <i class="bi bi-database"></i> データベース
+                                </button>
+                                <button class="btn btn-sm btn-outline-info template-btn" data-type="function" data-template="api">
+                                    <i class="bi bi-cloud"></i> API
+                                </button>
+                                <button class="btn btn-sm btn-outline-info template-btn" data-type="function" data-template="email">
+                                    <i class="bi bi-envelope"></i> メール送信
+                                </button>
+                                <button class="btn btn-sm btn-outline-info template-btn" data-type="function" data-template="notification">
+                                    <i class="bi bi-bell"></i> 通知
+                                </button>
+                                <button class="btn btn-sm btn-outline-info template-btn" data-type="function" data-template="calculation">
+                                    <i class="bi bi-calculator"></i> 計算処理
+                                </button>
+                                <button class="btn btn-sm btn-outline-info template-btn" data-type="function" data-template="validation">
+                                    <i class="bi bi-check-circle"></i> バリデーション
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+
+
+                    <!-- View Options -->
+                    <div class="mb-4">
+                        <h6>表示設定</h6>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="gridToggle" checked>
+                            <label class="form-check-label" for="gridToggle">
+                                グリッド表示
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="snapToggle" checked>
+                            <label class="form-check-label" for="snapToggle">
+                                グリッドスナップ
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Main Canvas Area -->
+            <div class="col-md-8">
+                <div class="canvas-container">
+                    <!-- Flow Title -->
+                    <div class="mb-3">
+                        <label for="flowTitle" class="form-label">フロータイトル</label>
+                        <input type="text" class="form-control" id="flowTitle" placeholder="フローのタイトルを入力してください">
+                    </div>
+                    
+                    <!-- Canvas Controls -->
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <div class="btn-group" role="group">
+                            <button class="btn btn-outline-secondary btn-sm" id="zoomIn">
+                                <i class="bi bi-zoom-in"></i>
+                            </button>
+                            <button class="btn btn-outline-secondary btn-sm" id="zoomOut">
+                                <i class="bi bi-zoom-out"></i>
+                            </button>
+                            <button class="btn btn-outline-secondary btn-sm" id="zoomReset">
+                                <i class="bi bi-arrow-clockwise"></i>
+                            </button>
+                        </div>
+                        <div class="btn-group" role="group">
+                            <button class="btn btn-outline-secondary btn-sm" id="expandCanvas">
+                                <i class="bi bi-arrows-expand"></i> キャンバス拡張
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="canvas-wrapper">
+                        <canvas id="flowCanvas" width="800" height="600"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Properties Panel -->
+            <div class="col-md-2 bg-light border-start">
+                <div class="p-3">
+                    <h5 class="mb-3">プロパティ</h5>
+                    
+                    <div id="elementProperties" class="d-none">
+                        <div class="mb-3">
+                            <label for="elementText" class="form-label">テキスト</label>
+                            <textarea class="form-control" id="elementText" rows="3"></textarea>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="elementColor" class="form-label">カラー</label>
+                            <input type="color" class="form-control form-control-color" id="elementColor">
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="elementWidth" class="form-label">幅</label>
+                            <input type="number" class="form-control" id="elementWidth" min="50" max="300">
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="elementHeight" class="form-label">高さ</label>
+                            <input type="number" class="form-control" id="elementHeight" min="30" max="200">
+                        </div>
+                        
+                        <div class="mb-3" id="arrowThicknessContainer" style="display: none;">
+                            <label for="arrowThickness" class="form-label">矢印の太さ</label>
+                            <input type="range" class="form-range" id="arrowThickness" min="1" max="20" value="8">
+                            <div class="d-flex justify-content-between">
+                                <small>細い</small>
+                                <small id="thicknessValue">8</small>
+                                <small>太い</small>
+                            </div>
+                        </div>
+                        
+                        <button class="btn btn-danger btn-sm" id="deleteElement">削除</button>
+                    </div>
+                    
+                    <div id="noSelection" class="text-muted">
+                        要素を選択してください
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+    
+    <!-- Custom JavaScript -->
+    <script src="script.js"></script>
+</body>
+</html>
