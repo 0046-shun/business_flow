@@ -17,14 +17,11 @@
         <div class="container-fluid">
             <a class="navbar-brand" href="#">Business Flow Creator</a>
             <div class="navbar-nav ms-auto">
-                <button class="btn btn-outline-light me-2" id="saveBtn">
-                    <i class="bi bi-save"></i> 保存
+                <button class="btn btn-outline-light me-2" id="undoBtn">
+                    <i class="bi bi-arrow-counterclockwise"></i> 戻る
                 </button>
-                <button class="btn btn-outline-light me-2" id="loadBtn">
-                    <i class="bi bi-folder-open"></i> 読み込み
-                </button>
-                <button class="btn btn-outline-light me-2" id="exportBtn">
-                    <i class="bi bi-download"></i> エクスポート
+                <button class="btn btn-outline-light me-2" id="exportPngBtn">
+                    <i class="bi bi-image"></i> PNG
                 </button>
                 <button class="btn btn-outline-light" id="clearBtn">
                     <i class="bi bi-trash"></i> クリア
@@ -45,10 +42,10 @@
                         <div class="form-check">
                             <input class="form-check-input" type="checkbox" id="editModeToggle">
                             <label class="form-check-label" for="editModeToggle">
-                                <strong>編集モード</strong>
+                                <strong>微調整モード</strong>
                             </label>
                         </div>
-                        <small class="text-muted">編集モード時は新しいアイテムの追加が無効になります</small>
+                        <small class="text-muted">新しいアイテムの追加が無効になりアイテム配置に最適！！</small>
                     </div>
                     
                     <!-- Flow Elements -->
@@ -59,20 +56,18 @@
                         <div class="mb-3">
                             <small class="text-muted">カード</small>
                             <div class="d-grid gap-1">
-                                <button class="btn btn-sm btn-outline-primary template-btn" data-type="card" data-template="process">
-                                    <i class="bi bi-gear"></i> プロセス
+                                <button class="btn btn-sm btn-outline-primary template-btn" data-type="card" data-template="basic">
+                                    <i class="bi bi-square"></i> 四角
                                 </button>
-                                <button class="btn btn-sm btn-outline-primary template-btn" data-type="card" data-template="decision">
-                                    <i class="bi bi-question-circle"></i> 判断
-                                </button>
-                                <button class="btn btn-sm btn-outline-primary template-btn" data-type="card" data-template="start">
-                                    <i class="bi bi-play-circle"></i> 開始
-                                </button>
-                                <button class="btn btn-sm btn-outline-primary template-btn" data-type="card" data-template="end">
-                                    <i class="bi bi-stop-circle"></i> 終了
-                                </button>
-                                <button class="btn btn-sm btn-outline-primary template-btn" data-type="card" data-template="document">
-                                    <i class="bi bi-file-text"></i> 文書
+                            </div>
+                        </div>
+
+                        <!-- Text Box -->
+                        <div class="mb-3">
+                            <small class="text-muted">テキストボックス</small>
+                            <div class="d-grid gap-1">
+                                <button class="btn btn-sm btn-outline-secondary template-btn" data-type="textbox" data-template="plain">
+                                    <i class="bi bi-type"></i> 背景なし
                                 </button>
                             </div>
                         </div>
@@ -81,58 +76,28 @@
                         <div class="mb-3">
                             <small class="text-muted">矢印</small>
                             <div class="d-grid gap-1">
-                                <button class="btn btn-sm btn-outline-success template-btn" data-type="arrow" data-template="right">
-                                    <i class="bi bi-arrow-right"></i> 右向き
-                                </button>
-                                <button class="btn btn-sm btn-outline-success template-btn" data-type="arrow" data-template="down">
-                                    <i class="bi bi-arrow-down"></i> 下向き
-                                </button>
-                                <button class="btn btn-sm btn-outline-success template-btn" data-type="arrow" data-template="left">
-                                    <i class="bi bi-arrow-left"></i> 左向き
-                                </button>
-                                <button class="btn btn-sm btn-outline-success template-btn" data-type="arrow" data-template="up">
-                                    <i class="bi bi-arrow-up"></i> 上向き
+                                <button class="btn btn-sm btn-outline-success template-btn" data-type="arrow" data-template="line">
+                                    <i class="bi bi-arrow-right"></i> 矢印
                                 </button>
                             </div>
                         </div>
 
-                        <!-- Branches -->
+                        <!-- Branch -->
                         <div class="mb-3">
                             <small class="text-muted">分岐</small>
                             <div class="d-grid gap-1">
                                 <button class="btn btn-sm btn-outline-warning template-btn" data-type="branch" data-template="diamond">
-                                    <i class="bi bi-diamond"></i> ダイヤモンド
-                                </button>
-                                <button class="btn btn-sm btn-outline-warning template-btn" data-type="branch" data-template="circle">
-                                    <i class="bi bi-circle"></i> 円形
-                                </button>
-                                <button class="btn btn-sm btn-outline-warning template-btn" data-type="branch" data-template="hexagon">
-                                    <i class="bi bi-hexagon"></i> 六角形
+                                    <i class="bi bi-diamond"></i> 菱形
                                 </button>
                             </div>
                         </div>
 
-                        <!-- Function Cards -->
+                        <!-- Actor -->
                         <div class="mb-3">
-                            <small class="text-muted">機能カード</small>
+                            <small class="text-muted">アクター</small>
                             <div class="d-grid gap-1">
-                                <button class="btn btn-sm btn-outline-info template-btn" data-type="function" data-template="database">
-                                    <i class="bi bi-database"></i> データベース
-                                </button>
-                                <button class="btn btn-sm btn-outline-info template-btn" data-type="function" data-template="api">
-                                    <i class="bi bi-cloud"></i> API
-                                </button>
-                                <button class="btn btn-sm btn-outline-info template-btn" data-type="function" data-template="email">
-                                    <i class="bi bi-envelope"></i> メール送信
-                                </button>
-                                <button class="btn btn-sm btn-outline-info template-btn" data-type="function" data-template="notification">
-                                    <i class="bi bi-bell"></i> 通知
-                                </button>
-                                <button class="btn btn-sm btn-outline-info template-btn" data-type="function" data-template="calculation">
-                                    <i class="bi bi-calculator"></i> 計算処理
-                                </button>
-                                <button class="btn btn-sm btn-outline-info template-btn" data-type="function" data-template="validation">
-                                    <i class="bi bi-check-circle"></i> バリデーション
+                                <button class="btn btn-sm btn-outline-info template-btn" data-type="actor" data-template="human">
+                                    <i class="bi bi-person"></i> 人型
                                 </button>
                             </div>
                         </div>
@@ -222,12 +187,25 @@
                         
                         <div class="mb-3" id="arrowThicknessContainer" style="display: none;">
                             <label for="arrowThickness" class="form-label">矢印の太さ</label>
-                            <input type="range" class="form-range" id="arrowThickness" min="1" max="20" value="8">
+                            <input type="range" class="form-range" id="arrowThickness" min="1" max="20" value="4">
                             <div class="d-flex justify-content-between">
                                 <small>細い</small>
-                                <small id="thicknessValue">8</small>
+                                <small id="thicknessValue">4</small>
                                 <small>太い</small>
                             </div>
+                        </div>
+
+                        <div class="mb-3" id="arrowHeadContainer" style="display: none;">
+                            <label for="arrowStartHead" class="form-label">始まりの先端</label>
+                            <select class="form-select mb-2" id="arrowStartHead">
+                                <option value="none">-</option>
+                                <option value="arrow">→</option>
+                            </select>
+                            <label for="arrowEndHead" class="form-label">終わりの先端</label>
+                            <select class="form-select" id="arrowEndHead">
+                                <option value="none">-</option>
+                                <option value="arrow">→</option>
+                            </select>
                         </div>
                         
                         <button class="btn btn-danger btn-sm" id="deleteElement">削除</button>

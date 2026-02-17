@@ -9,7 +9,7 @@ class FlowCreator {
         this.selectedElement = null;
         this.selectedElements = []; // 複数選択された要素
         this.selectedTool = 'card';
-        this.selectedTemplate = 'process';
+        this.selectedTemplate = 'basic';
         this.selectedColor = '#007bff';
         this.isDragging = false;
         this.isResizing = false;
@@ -32,6 +32,11 @@ class FlowCreator {
         this.highlightedElement = null;
         this.justCreatedElement = false;
         this.editMode = false;
+        this.history = [];
+        this.historyIndex = -1;
+        this.isUndoing = false;
+        this.isCreatingArrow = false;
+        this.currentArrow = null;
         
         this.init();
     }
@@ -43,7 +48,7 @@ class FlowCreator {
         this.loadFromStorage();
         
         // Set default selection
-        document.querySelector('.template-btn[data-type="card"][data-template="process"]').classList.add('active');
+        document.querySelector('.template-btn[data-type="card"][data-template="basic"]').classList.add('active');
         
         // Flow title event listener
         document.getElementById('flowTitle').addEventListener('input', (e) => {
@@ -94,9 +99,8 @@ class FlowCreator {
         });
 
         // File operations
-        document.getElementById('saveBtn').addEventListener('click', () => this.saveToStorage(true));
-        document.getElementById('loadBtn').addEventListener('click', () => this.loadFromStorage());
-        document.getElementById('exportBtn').addEventListener('click', () => this.exportFlow());
+        document.getElementById('undoBtn').addEventListener('click', () => this.undo());
+        document.getElementById('exportPngBtn').addEventListener('click', () => this.exportCanvasAsPng());
         document.getElementById('clearBtn').addEventListener('click', () => this.clearCanvas());
 
         // Property panel events
@@ -105,6 +109,8 @@ class FlowCreator {
         document.getElementById('elementWidth').addEventListener('input', (e) => this.updateElementSize('width', parseInt(e.target.value)));
         document.getElementById('elementHeight').addEventListener('input', (e) => this.updateElementSize('height', parseInt(e.target.value)));
         document.getElementById('arrowThickness').addEventListener('input', (e) => this.updateArrowThickness(parseInt(e.target.value)));
+        document.getElementById('arrowStartHead').addEventListener('change', (e) => this.updateArrowHead('start', e.target.value));
+        document.getElementById('arrowEndHead').addEventListener('change', (e) => this.updateArrowHead('end', e.target.value));
         document.getElementById('deleteElement').addEventListener('click', () => this.deleteSelectedElement());
 
         // Keyboard shortcuts
@@ -175,6 +181,17 @@ class FlowCreator {
             style: templateConfig.style || {}
         };
 
+        if (type === 'arrow') {
+            const defaultEnd = this.getSnappedPoint(x + templateConfig.width, y, true);
+            element.startX = x;
+            element.startY = y;
+            element.endX = defaultEnd.x;
+            element.endY = defaultEnd.y;
+            element.startHead = 'none';
+            element.endHead = 'arrow';
+            this.updateArrowBounds(element);
+        }
+
         this.elements.push(element);
         this.selectElement(element);
         this.justCreatedElement = true;
@@ -185,34 +202,23 @@ class FlowCreator {
     getTemplateConfig(type, template) {
         const configs = {
             card: {
-                process: { width: 120, height: 60, defaultText: 'プロセス', color: '#007bff' },
-                decision: { width: 120, height: 60, defaultText: '判断', color: '#ffc107' },
-                start: { width: 100, height: 50, defaultText: '開始', color: '#28a745' },
-                end: { width: 100, height: 50, defaultText: '終了', color: '#dc3545' },
-                document: { width: 120, height: 60, defaultText: '文書', color: '#6f42c1' }
+                basic: { width: 140, height: 70, defaultText: 'カード', color: '#007bff' }
             },
-            arrow: {
-                right: { width: 100, height: 40, defaultText: '', color: '#6c757d', thickness: 8 },
-                down: { width: 40, height: 100, defaultText: '', color: '#6c757d', thickness: 8 },
-                left: { width: 100, height: 40, defaultText: '', color: '#6c757d', thickness: 8 },
-                up: { width: 40, height: 100, defaultText: '', color: '#6c757d', thickness: 8 }
+            textbox: {
+                plain: { width: 160, height: 50, defaultText: 'テキスト', color: '#212529' }
             },
             branch: {
-                diamond: { width: 80, height: 60, defaultText: '分岐', color: '#ffc107' },
-                circle: { width: 80, height: 80, defaultText: '分岐', color: '#17a2b8' },
-                hexagon: { width: 80, height: 60, defaultText: '分岐', color: '#fd7e14' }
+                diamond: { width: 100, height: 80, defaultText: '分岐', color: '#ffc107' }
             },
-            function: {
-                database: { width: 120, height: 60, defaultText: 'データベース', color: '#17a2b8' },
-                api: { width: 120, height: 60, defaultText: 'API', color: '#17a2b8' },
-                email: { width: 120, height: 60, defaultText: 'メール送信', color: '#17a2b8' },
-                notification: { width: 120, height: 60, defaultText: '通知', color: '#17a2b8' },
-                calculation: { width: 120, height: 60, defaultText: '計算処理', color: '#17a2b8' },
-                validation: { width: 120, height: 60, defaultText: 'バリデーション', color: '#17a2b8' }
+            actor: {
+                human: { width: 120, height: 140, defaultText: 'アクター', color: '#0d6efd' }
+            },
+            arrow: {
+                line: { width: 120, height: 60, defaultText: '', color: '#6c757d', thickness: 4 }
             }
         };
 
-        return configs[type][template] || configs[type]['process'] || configs['card']['process'];
+        return configs[type]?.[template] || configs[type]?.basic || configs['card'].basic;
     }
 
     getElementAt(x, y) {
@@ -236,88 +242,11 @@ class FlowCreator {
     }
 
     isPointOnArrow(element, x, y) {
-        const centerX = element.x + element.width / 2;
-        const centerY = element.y + element.height / 2;
-        const arrowLength = Math.min(element.width, element.height) * 0.8;
+        const { startX, startY, endX, endY } = this.getArrowEndpoints(element);
         const thickness = element.thickness || 8;
-        const tolerance = Math.max(thickness / 2 + 5, 10); // Click tolerance
-
-        // Check if point is on arrow shaft
-        switch (element.template) {
-            case 'right':
-                if (x >= centerX - arrowLength / 2 - tolerance && 
-                    x <= centerX + arrowLength / 2 + tolerance &&
-                    y >= centerY - tolerance && y <= centerY + tolerance) {
-                    return true;
-                }
-                break;
-            case 'down':
-                if (x >= centerX - tolerance && x <= centerX + tolerance &&
-                    y >= centerY - arrowLength / 2 - tolerance && 
-                    y <= centerY + arrowLength / 2 + tolerance) {
-                    return true;
-                }
-                break;
-            case 'left':
-                if (x >= centerX - arrowLength / 2 - tolerance && 
-                    x <= centerX + arrowLength / 2 + tolerance &&
-                    y >= centerY - tolerance && y <= centerY + tolerance) {
-                    return true;
-                }
-                break;
-            case 'up':
-                if (x >= centerX - tolerance && x <= centerX + tolerance &&
-                    y >= centerY - arrowLength / 2 - tolerance && 
-                    y <= centerY + arrowLength / 2 + tolerance) {
-                    return true;
-                }
-                break;
-        }
-
-        // Check if point is on arrowhead
-        const headLength = Math.max(20, thickness * 3);
-        const headAngle = Math.PI / 6;
-
-        switch (element.template) {
-            case 'right':
-                const rightHeadX = centerX + arrowLength / 2;
-                const rightHeadY = centerY;
-                if (this.isPointInTriangle(x, y, rightHeadX, rightHeadY, 
-                    rightHeadX - headLength * Math.cos(headAngle), rightHeadY - headLength * Math.sin(headAngle),
-                    rightHeadX - headLength * Math.cos(headAngle), rightHeadY + headLength * Math.sin(headAngle))) {
-                    return true;
-                }
-                break;
-            case 'down':
-                const downHeadX = centerX;
-                const downHeadY = centerY + arrowLength / 2;
-                if (this.isPointInTriangle(x, y, downHeadX, downHeadY,
-                    downHeadX - headLength * Math.sin(headAngle), downHeadY - headLength * Math.cos(headAngle),
-                    downHeadX + headLength * Math.sin(headAngle), downHeadY - headLength * Math.cos(headAngle))) {
-                    return true;
-                }
-                break;
-            case 'left':
-                const leftHeadX = centerX - arrowLength / 2;
-                const leftHeadY = centerY;
-                if (this.isPointInTriangle(x, y, leftHeadX, leftHeadY,
-                    leftHeadX + headLength * Math.cos(headAngle), leftHeadY - headLength * Math.sin(headAngle),
-                    leftHeadX + headLength * Math.cos(headAngle), leftHeadY + headLength * Math.sin(headAngle))) {
-                    return true;
-                }
-                break;
-            case 'up':
-                const upHeadX = centerX;
-                const upHeadY = centerY - arrowLength / 2;
-                if (this.isPointInTriangle(x, y, upHeadX, upHeadY,
-                    upHeadX - headLength * Math.sin(headAngle), upHeadY + headLength * Math.cos(headAngle),
-                    upHeadX + headLength * Math.sin(headAngle), upHeadY + headLength * Math.cos(headAngle))) {
-                    return true;
-                }
-                break;
-        }
-
-        return false;
+        const tolerance = Math.max(thickness / 2 + 6, 10);
+        const dist = this.distancePointToSegment(x, y, startX, startY, endX, endY);
+        return dist <= tolerance;
     }
 
     isPointInTriangle(px, py, x1, y1, x2, y2, x3, y3) {
@@ -378,6 +307,7 @@ class FlowCreator {
         const propertiesPanel = document.getElementById('elementProperties');
         const noSelection = document.getElementById('noSelection');
         const arrowThicknessContainer = document.getElementById('arrowThicknessContainer');
+        const arrowHeadContainer = document.getElementById('arrowHeadContainer');
 
         if (this.selectedElement) {
             propertiesPanel.classList.remove('d-none');
@@ -423,15 +353,20 @@ class FlowCreator {
             // Show/hide arrow thickness control
             if (this.selectedElement.type === 'arrow') {
                 arrowThicknessContainer.style.display = 'block';
-                document.getElementById('arrowThickness').value = this.selectedElement.thickness || 5;
-                document.getElementById('thicknessValue').textContent = this.selectedElement.thickness || 5;
+                arrowHeadContainer.style.display = 'block';
+                document.getElementById('arrowThickness').value = this.selectedElement.thickness || 4;
+                document.getElementById('thicknessValue').textContent = this.selectedElement.thickness || 4;
+                document.getElementById('arrowStartHead').value = this.selectedElement.startHead || 'none';
+                document.getElementById('arrowEndHead').value = this.selectedElement.endHead || 'arrow';
             } else {
                 arrowThicknessContainer.style.display = 'none';
+                arrowHeadContainer.style.display = 'none';
             }
         } else {
             propertiesPanel.classList.add('d-none');
             noSelection.classList.remove('d-none');
             arrowThicknessContainer.style.display = 'none';
+            arrowHeadContainer.style.display = 'none';
         }
     }
 
@@ -461,6 +396,7 @@ class FlowCreator {
     updateElementText(text) {
         if (this.selectedElement) {
             // Apply text change to all selected elements
+            this.pushHistory();
             this.selectedElements.forEach(element => {
                 element.text = text;
             });
@@ -472,6 +408,7 @@ class FlowCreator {
     updateElementColor(color) {
         if (this.selectedElement) {
             // Apply color change to all selected elements
+            this.pushHistory();
             this.selectedElements.forEach(element => {
                 element.color = color;
             });
@@ -483,6 +420,7 @@ class FlowCreator {
     updateElementSize(dimension, value) {
         if (this.selectedElement && value > 0) {
             // Apply size change to all selected elements (except arrows)
+            this.pushHistory();
             this.selectedElements.forEach(element => {
                 if (element.type !== 'arrow') {
                     element[dimension] = value;
@@ -496,6 +434,7 @@ class FlowCreator {
     updateArrowThickness(thickness) {
         if (this.selectedElement && this.selectedElement.type === 'arrow') {
             // Apply thickness change to all selected arrow elements
+            this.pushHistory();
             this.selectedElements.forEach(element => {
                 if (element.type === 'arrow') {
                     element.thickness = thickness;
@@ -507,9 +446,27 @@ class FlowCreator {
         }
     }
 
+    updateArrowHead(position, value) {
+        if (this.selectedElement && this.selectedElement.type === 'arrow') {
+            this.pushHistory();
+            this.selectedElements.forEach(element => {
+                if (element.type === 'arrow') {
+                    if (position === 'start') {
+                        element.startHead = value;
+                    } else {
+                        element.endHead = value;
+                    }
+                }
+            });
+            this.redraw();
+            this.debouncedSave();
+        }
+    }
+
     deleteSelectedElement() {
         if (this.selectedElement) {
             // Delete all selected elements
+            this.pushHistory();
             this.selectedElements.forEach(element => {
                 const index = this.elements.indexOf(element);
                 if (index > -1) {
@@ -528,6 +485,18 @@ class FlowCreator {
         const x = e.clientX - rect.left;
         const y = e.clientY - rect.top;
 
+        if (this.selectedTool === 'arrow' && this.isCreatingArrow && this.currentArrow) {
+            const endPoint = this.getSnappedPoint(x, y, true);
+            this.currentArrow.endX = endPoint.x;
+            this.currentArrow.endY = endPoint.y;
+            this.updateArrowBounds(this.currentArrow);
+            this.isCreatingArrow = false;
+            this.currentArrow = null;
+            this.canvas.style.cursor = 'crosshair';
+            this.debouncedSave();
+            return;
+        }
+
         // Check for resize handle first
         if (this.selectedElement) {
             const handle = this.getResizeHandleAt(x, y);
@@ -537,6 +506,7 @@ class FlowCreator {
                 this.resizeStartSize = { width: this.selectedElement.width, height: this.selectedElement.height };
                 this.resizeStartPos = { x, y };
                 this.canvas.style.cursor = 'nw-resize';
+                this.pushHistory();
                 return;
             }
         }
@@ -552,6 +522,7 @@ class FlowCreator {
                 // Check if this element is part of multi-selection
                 if (this.selectedElements.length > 1 && this.selectedElements.includes(element)) {
                     // Start dragging multi-selected elements
+                    this.pushHistory();
                     this.isDragging = true;
                     this.dragOffset.x = x - element.x;
                     this.dragOffset.y = y - element.y;
@@ -559,6 +530,7 @@ class FlowCreator {
                 } else {
                     // Single selection
                     this.clearMultiSelection();
+                    this.pushHistory();
                     this.isDragging = true;
                     this.dragOffset.x = x - element.x;
                     this.dragOffset.y = y - element.y;
@@ -577,18 +549,37 @@ class FlowCreator {
             }
             
             // Create new element at clicked position
-            const snappedX = this.snapToGrid ? Math.round(x / this.gridSize) * this.gridSize : x;
-            const snappedY = this.snapToGrid ? Math.round(y / this.gridSize) * this.gridSize : y;
-            
-            // For arrows, use 0.5 grid offset to center them properly
-            let finalX = snappedX;
-            let finalY = snappedY;
+            const startPoint = this.getSnappedPoint(x, y, this.selectedTool === 'arrow');
+            this.pushHistory();
             if (this.selectedTool === 'arrow') {
-                finalX = this.snapToGrid ? snappedX + this.gridSize / 2 : x;
-                finalY = this.snapToGrid ? snappedY + this.gridSize / 2 : y;
+                const templateConfig = this.getTemplateConfig('arrow', this.selectedTemplate);
+                const element = {
+                    id: ++this.elementIdCounter,
+                    type: 'arrow',
+                    template: this.selectedTemplate,
+                    x: startPoint.x,
+                    y: startPoint.y,
+                    width: templateConfig.width,
+                    height: templateConfig.height,
+                    text: '',
+                    color: templateConfig.color,
+                    thickness: templateConfig.thickness || 8,
+                    style: templateConfig.style || {},
+                    startX: startPoint.x,
+                    startY: startPoint.y,
+                    endX: startPoint.x,
+                    endY: startPoint.y,
+                    startHead: 'none',
+                    endHead: 'arrow'
+                };
+                this.elements.push(element);
+                this.selectElement(element);
+                this.isCreatingArrow = true;
+                this.currentArrow = element;
+                this.redraw();
+            } else {
+                this.createElement(this.selectedTool, this.selectedTemplate, startPoint.x, startPoint.y);
             }
-            
-            this.createElement(this.selectedTool, this.selectedTemplate, finalX, finalY);
         }
     }
 
@@ -597,26 +588,26 @@ class FlowCreator {
         const x = e.clientX - rect.left;
         const y = e.clientY - rect.top;
 
-        if (this.isResizing && this.selectedElement) {
+        if (this.isCreatingArrow && this.currentArrow) {
+            const endPoint = this.getSnappedPoint(x, y, true);
+            this.currentArrow.endX = endPoint.x;
+            this.currentArrow.endY = endPoint.y;
+            this.updateArrowBounds(this.currentArrow);
+            this.redraw();
+        } else if (this.isResizing && this.selectedElement) {
             const deltaX = x - this.resizeStartPos.x;
             const deltaY = y - this.resizeStartPos.y;
 
             if (this.selectedElement.type === 'arrow') {
-                // 矢印の長さを変更
-                const currentLength = Math.min(this.resizeStartSize.width, this.resizeStartSize.height) * 0.8;
-                let newLength = currentLength;
-                
+                const movePoint = this.getSnappedPoint(x, y, true);
                 if (this.resizeHandle === 'start') {
-                    // 開始点を移動して長さを変更
-                    newLength = Math.max(30, currentLength - deltaX);
+                    this.selectedElement.startX = movePoint.x;
+                    this.selectedElement.startY = movePoint.y;
                 } else if (this.resizeHandle === 'end') {
-                    // 終了点を移動して長さを変更
-                    newLength = Math.max(30, currentLength + deltaX);
+                    this.selectedElement.endX = movePoint.x;
+                    this.selectedElement.endY = movePoint.y;
                 }
-                
-                const newSize = newLength / 0.8;
-                this.selectedElement.width = newSize;
-                this.selectedElement.height = newSize;
+                this.updateArrowBounds(this.selectedElement);
             } else {
                 // 通常の要素のリサイズ
                 let newWidth = this.resizeStartSize.width;
@@ -684,8 +675,16 @@ class FlowCreator {
 
             // Move all selected elements
             this.selectedElements.forEach(element => {
-                element.x = Math.max(0, Math.min(element.x + deltaX, this.canvas.width - element.width));
-                element.y = Math.max(0, Math.min(element.y + deltaY, this.canvas.height - element.height));
+                if (element.type === 'arrow' && element.startX !== undefined) {
+                    element.startX += deltaX;
+                    element.startY += deltaY;
+                    element.endX += deltaX;
+                    element.endY += deltaY;
+                    this.updateArrowBounds(element);
+                } else {
+                    element.x = Math.max(0, Math.min(element.x + deltaX, this.canvas.width - element.width));
+                    element.y = Math.max(0, Math.min(element.y + deltaY, this.canvas.height - element.height));
+                }
             });
 
             this.redraw();
@@ -776,11 +775,17 @@ class FlowCreator {
             case 'card':
                 this.drawCard(element);
                 break;
+            case 'textbox':
+                this.drawTextBox(element);
+                break;
             case 'arrow':
                 this.drawArrow(element);
                 break;
             case 'branch':
                 this.drawBranch(element);
+                break;
+            case 'actor':
+                this.drawActor(element);
                 break;
             case 'function':
                 this.drawFunction(element);
@@ -788,9 +793,11 @@ class FlowCreator {
         }
 
         // Draw text
-        if (element.text) {
-            this.ctx.fillStyle = element.type === 'function' ? '#fff' : '#000';
-            this.ctx.font = element.type === 'function' ? 'bold 14px Segoe UI, sans-serif' : '14px Segoe UI, sans-serif';
+        if (element.text && element.type !== 'actor') {
+            const isFunction = element.type === 'function';
+            const isTextBox = element.type === 'textbox';
+            this.ctx.fillStyle = isFunction ? '#fff' : (isTextBox ? element.color : '#000');
+            this.ctx.font = isFunction ? 'bold 14px Segoe UI, sans-serif' : '14px Segoe UI, sans-serif';
             this.ctx.textAlign = 'center';
             this.ctx.textBaseline = 'middle';
             
@@ -853,10 +860,7 @@ class FlowCreator {
     }
 
     drawArrowResizeHandles(element) {
-        const centerX = element.x + element.width / 2;
-        const centerY = element.y + element.height / 2;
-        const arrowLength = Math.min(element.width, element.height) * 0.8;
-        const handleSize = 8;
+        const { startX, startY, endX, endY } = this.getArrowEndpoints(element);
 
         this.ctx.save();
         this.ctx.fillStyle = '#0d6efd';
@@ -864,25 +868,8 @@ class FlowCreator {
         this.ctx.lineWidth = 2;
 
         // Draw handles at arrow endpoints
-        switch (element.template) {
-            case 'right':
-                // Start and end points
-                this.drawHandle(centerX - arrowLength / 2, centerY);
-                this.drawHandle(centerX + arrowLength / 2, centerY);
-                break;
-            case 'down':
-                this.drawHandle(centerX, centerY - arrowLength / 2);
-                this.drawHandle(centerX, centerY + arrowLength / 2);
-                break;
-            case 'left':
-                this.drawHandle(centerX + arrowLength / 2, centerY);
-                this.drawHandle(centerX - arrowLength / 2, centerY);
-                break;
-            case 'up':
-                this.drawHandle(centerX, centerY + arrowLength / 2);
-                this.drawHandle(centerX, centerY - arrowLength / 2);
-                break;
-        }
+        this.drawHandle(startX, startY);
+        this.drawHandle(endX, endY);
 
         this.ctx.restore();
     }
@@ -892,6 +879,97 @@ class FlowCreator {
         this.ctx.arc(x, y, 6, 0, Math.PI * 2);
         this.ctx.fill();
         this.ctx.stroke();
+    }
+
+    getSnappedPoint(x, y, isArrow = false) {
+        if (!this.snapToGrid) {
+            return { x, y };
+        }
+        if (isArrow) {
+            return {
+                x: Math.round(x / this.gridSize) * this.gridSize + this.gridSize / 2,
+                y: Math.round(y / this.gridSize) * this.gridSize + this.gridSize / 2
+            };
+        }
+        return {
+            x: Math.round(x / this.gridSize) * this.gridSize,
+            y: Math.round(y / this.gridSize) * this.gridSize
+        };
+    }
+
+    getArrowEndpoints(element) {
+        if (element.startX !== undefined && element.endX !== undefined) {
+            return {
+                startX: element.startX,
+                startY: element.startY,
+                endX: element.endX,
+                endY: element.endY
+            };
+        }
+        const centerX = element.x + element.width / 2;
+        const centerY = element.y + element.height / 2;
+        const arrowLength = Math.min(element.width, element.height) * 0.8;
+        switch (element.template) {
+            case 'right':
+                return {
+                    startX: centerX - arrowLength / 2,
+                    startY: centerY,
+                    endX: centerX + arrowLength / 2,
+                    endY: centerY
+                };
+            case 'down':
+                return {
+                    startX: centerX,
+                    startY: centerY - arrowLength / 2,
+                    endX: centerX,
+                    endY: centerY + arrowLength / 2
+                };
+            case 'left':
+                return {
+                    startX: centerX + arrowLength / 2,
+                    startY: centerY,
+                    endX: centerX - arrowLength / 2,
+                    endY: centerY
+                };
+            case 'up':
+                return {
+                    startX: centerX,
+                    startY: centerY + arrowLength / 2,
+                    endX: centerX,
+                    endY: centerY - arrowLength / 2
+                };
+            default:
+                return {
+                    startX: element.x,
+                    startY: element.y,
+                    endX: element.x + element.width,
+                    endY: element.y
+                };
+        }
+    }
+
+    updateArrowBounds(element) {
+        const { startX, startY, endX, endY } = this.getArrowEndpoints(element);
+        const minX = Math.min(startX, endX);
+        const minY = Math.min(startY, endY);
+        const maxX = Math.max(startX, endX);
+        const maxY = Math.max(startY, endY);
+        element.x = minX;
+        element.y = minY;
+        element.width = Math.max(1, maxX - minX);
+        element.height = Math.max(1, maxY - minY);
+    }
+
+    distancePointToSegment(px, py, x1, y1, x2, y2) {
+        const dx = x2 - x1;
+        const dy = y2 - y1;
+        if (dx === 0 && dy === 0) {
+            return Math.hypot(px - x1, py - y1);
+        }
+        const t = Math.max(0, Math.min(1, ((px - x1) * dx + (py - y1) * dy) / (dx * dx + dy * dy)));
+        const projX = x1 + t * dx;
+        const projY = y1 + t * dy;
+        return Math.hypot(px - projX, py - projY);
     }
 
     getResizeHandleAt(x, y) {
@@ -924,46 +1002,14 @@ class FlowCreator {
     getArrowResizeHandleAt(x, y, element = null) {
         const targetElement = element || this.selectedElement;
         if (!targetElement) return null;
-        
-        const centerX = targetElement.x + targetElement.width / 2;
-        const centerY = targetElement.y + targetElement.height / 2;
-        const arrowLength = Math.min(targetElement.width, targetElement.height) * 0.8;
+        const { startX, startY, endX, endY } = this.getArrowEndpoints(targetElement);
         const handleRadius = 6;
-
-        // Check handles at arrow endpoints
-        switch (targetElement.template) {
-            case 'right':
-                if (this.isPointInCircle(x, y, centerX - arrowLength / 2, centerY, handleRadius)) {
-                    return 'start';
-                }
-                if (this.isPointInCircle(x, y, centerX + arrowLength / 2, centerY, handleRadius)) {
-                    return 'end';
-                }
-                break;
-            case 'down':
-                if (this.isPointInCircle(x, y, centerX, centerY - arrowLength / 2, handleRadius)) {
-                    return 'start';
-                }
-                if (this.isPointInCircle(x, y, centerX, centerY + arrowLength / 2, handleRadius)) {
-                    return 'end';
-                }
-                break;
-            case 'left':
-                if (this.isPointInCircle(x, y, centerX + arrowLength / 2, centerY, handleRadius)) {
-                    return 'start';
-                }
-                if (this.isPointInCircle(x, y, centerX - arrowLength / 2, centerY, handleRadius)) {
-                    return 'end';
-                }
-                break;
-            case 'up':
-                if (this.isPointInCircle(x, y, centerX, centerY + arrowLength / 2, handleRadius)) {
-                    return 'start';
-                }
-                if (this.isPointInCircle(x, y, centerX, centerY - arrowLength / 2, handleRadius)) {
-                    return 'end';
-                }
-                break;
+        
+        if (this.isPointInCircle(x, y, startX, startY, handleRadius)) {
+            return 'start';
+        }
+        if (this.isPointInCircle(x, y, endX, endY, handleRadius)) {
+            return 'end';
         }
 
         return null;
@@ -1004,10 +1050,19 @@ class FlowCreator {
         this.ctx.stroke();
     }
 
+    drawTextBox(element) {
+        this.ctx.save();
+        this.ctx.strokeStyle = element.color;
+        this.ctx.lineWidth = 1.5;
+        this.ctx.setLineDash([]);
+        this.ctx.beginPath();
+        this.ctx.roundRect(element.x, element.y, element.width, element.height, 4);
+        this.ctx.stroke();
+        this.ctx.restore();
+    }
+
     drawArrow(element) {
-        const centerX = element.x + element.width / 2;
-        const centerY = element.y + element.height / 2;
-        const arrowLength = Math.min(element.width, element.height) * 0.8;
+        const { startX, startY, endX, endY } = this.getArrowEndpoints(element);
         const thickness = element.thickness || 8;
 
         // Save current context state
@@ -1019,26 +1074,8 @@ class FlowCreator {
         this.ctx.lineJoin = 'round';
 
         this.ctx.beginPath();
-        
-        // Draw arrow shaft based on template
-        switch (element.template) {
-            case 'right':
-                this.ctx.moveTo(centerX - arrowLength / 2, centerY);
-                this.ctx.lineTo(centerX + arrowLength / 2, centerY);
-                break;
-            case 'down':
-                this.ctx.moveTo(centerX, centerY - arrowLength / 2);
-                this.ctx.lineTo(centerX, centerY + arrowLength / 2);
-                break;
-            case 'left':
-                this.ctx.moveTo(centerX + arrowLength / 2, centerY);
-                this.ctx.lineTo(centerX - arrowLength / 2, centerY);
-                break;
-            case 'up':
-                this.ctx.moveTo(centerX, centerY + arrowLength / 2);
-                this.ctx.lineTo(centerX, centerY - arrowLength / 2);
-                break;
-        }
+        this.ctx.moveTo(startX, startY);
+        this.ctx.lineTo(endX, endY);
         
         this.ctx.stroke();
 
@@ -1047,60 +1084,32 @@ class FlowCreator {
         const headAngle = Math.PI / 6;
         
         this.ctx.beginPath();
-        
-        switch (element.template) {
-            case 'right':
-                // Draw arrowhead pointing right
-                this.ctx.moveTo(centerX + arrowLength / 2, centerY);
-                this.ctx.lineTo(
-                    centerX + arrowLength / 2 - headLength * Math.cos(headAngle),
-                    centerY - headLength * Math.sin(headAngle)
-                );
-                this.ctx.moveTo(centerX + arrowLength / 2, centerY);
-                this.ctx.lineTo(
-                    centerX + arrowLength / 2 - headLength * Math.cos(headAngle),
-                    centerY + headLength * Math.sin(headAngle)
-                );
-                break;
-            case 'down':
-                // Draw arrowhead pointing down
-                this.ctx.moveTo(centerX, centerY + arrowLength / 2);
-                this.ctx.lineTo(
-                    centerX - headLength * Math.sin(headAngle),
-                    centerY + arrowLength / 2 - headLength * Math.cos(headAngle)
-                );
-                this.ctx.moveTo(centerX, centerY + arrowLength / 2);
-                this.ctx.lineTo(
-                    centerX + headLength * Math.sin(headAngle),
-                    centerY + arrowLength / 2 - headLength * Math.cos(headAngle)
-                );
-                break;
-            case 'left':
-                // Draw arrowhead pointing left
-                this.ctx.moveTo(centerX - arrowLength / 2, centerY);
-                this.ctx.lineTo(
-                    centerX - arrowLength / 2 + headLength * Math.cos(headAngle),
-                    centerY - headLength * Math.sin(headAngle)
-                );
-                this.ctx.moveTo(centerX - arrowLength / 2, centerY);
-                this.ctx.lineTo(
-                    centerX - arrowLength / 2 + headLength * Math.cos(headAngle),
-                    centerY + headLength * Math.sin(headAngle)
-                );
-                break;
-            case 'up':
-                // Draw arrowhead pointing up
-                this.ctx.moveTo(centerX, centerY - arrowLength / 2);
-                this.ctx.lineTo(
-                    centerX - headLength * Math.sin(headAngle),
-                    centerY - arrowLength / 2 + headLength * Math.cos(headAngle)
-                );
-                this.ctx.moveTo(centerX, centerY - arrowLength / 2);
-                this.ctx.lineTo(
-                    centerX + headLength * Math.sin(headAngle),
-                    centerY - arrowLength / 2 + headLength * Math.cos(headAngle)
-                );
-                break;
+
+        const angle = Math.atan2(endY - startY, endX - startX);
+        if (element.endHead !== 'none') {
+            this.ctx.moveTo(endX, endY);
+            this.ctx.lineTo(
+                endX - headLength * Math.cos(angle - headAngle),
+                endY - headLength * Math.sin(angle - headAngle)
+            );
+            this.ctx.moveTo(endX, endY);
+            this.ctx.lineTo(
+                endX - headLength * Math.cos(angle + headAngle),
+                endY - headLength * Math.sin(angle + headAngle)
+            );
+        }
+        if (element.startHead !== 'none') {
+            const startAngle = angle + Math.PI;
+            this.ctx.moveTo(startX, startY);
+            this.ctx.lineTo(
+                startX - headLength * Math.cos(startAngle - headAngle),
+                startY - headLength * Math.sin(startAngle - headAngle)
+            );
+            this.ctx.moveTo(startX, startY);
+            this.ctx.lineTo(
+                startX - headLength * Math.cos(startAngle + headAngle),
+                startY - headLength * Math.sin(startAngle + headAngle)
+            );
         }
         
         this.ctx.stroke();
@@ -1118,6 +1127,12 @@ class FlowCreator {
         
         // Draw branch based on template
         switch (element.template) {
+            case 'triangle':
+                this.ctx.moveTo(centerX, element.y);
+                this.ctx.lineTo(element.x + element.width, element.y + element.height);
+                this.ctx.lineTo(element.x, element.y + element.height);
+                this.ctx.closePath();
+                break;
             case 'diamond':
                 // Draw diamond shape
                 this.ctx.moveTo(centerX, centerY - radius);
@@ -1146,6 +1161,67 @@ class FlowCreator {
         
         this.ctx.fill();
         this.ctx.stroke();
+    }
+
+    drawActor(element) {
+        const centerX = element.x + element.width / 2;
+        const headRadius = 12;
+        const boxHeight = 32;
+        const boxY = element.y + element.height - boxHeight;
+        const iconTop = element.y + 8;
+        const bodyTop = iconTop + headRadius * 2 + 4;
+        const bodyBottom = boxY - 6;
+        const armSpan = 24;
+        const legSpan = 18;
+
+        this.ctx.save();
+        this.ctx.strokeStyle = element.color;
+        this.ctx.fillStyle = element.color;
+        this.ctx.lineWidth = 2;
+
+        // Head
+        this.ctx.beginPath();
+        this.ctx.arc(centerX, iconTop + headRadius, headRadius, 0, Math.PI * 2);
+        this.ctx.fill();
+
+        // Body
+        this.ctx.beginPath();
+        this.ctx.moveTo(centerX, bodyTop);
+        this.ctx.lineTo(centerX, bodyBottom);
+        this.ctx.stroke();
+
+        // Arms
+        this.ctx.beginPath();
+        this.ctx.moveTo(centerX - armSpan, bodyTop + 10);
+        this.ctx.lineTo(centerX + armSpan, bodyTop + 10);
+        this.ctx.stroke();
+
+        // Legs
+        this.ctx.beginPath();
+        this.ctx.moveTo(centerX, bodyBottom);
+        this.ctx.lineTo(centerX - legSpan, bodyBottom + 18);
+        this.ctx.moveTo(centerX, bodyBottom);
+        this.ctx.lineTo(centerX + legSpan, bodyBottom + 18);
+        this.ctx.stroke();
+
+        // Text box for actor name
+        this.ctx.fillStyle = '#ffffff';
+        this.ctx.strokeStyle = element.color;
+        this.ctx.lineWidth = 1.5;
+        this.ctx.beginPath();
+        this.ctx.roundRect(element.x + 8, boxY, element.width - 16, boxHeight, 4);
+        this.ctx.fill();
+        this.ctx.stroke();
+
+        if (element.text) {
+            this.ctx.fillStyle = '#212529';
+            this.ctx.font = '14px Segoe UI, sans-serif';
+            this.ctx.textAlign = 'center';
+            this.ctx.textBaseline = 'middle';
+            this.ctx.fillText(element.text, centerX, boxY + boxHeight / 2);
+        }
+
+        this.ctx.restore();
     }
 
     drawFunction(element) {
@@ -1257,6 +1333,52 @@ class FlowCreator {
         return `rgb(${Math.floor(r * (1 - factor))}, ${Math.floor(g * (1 - factor))}, ${Math.floor(b * (1 - factor))})`;
     }
 
+    pushHistory() {
+        if (this.isUndoing) return;
+        const snapshot = {
+            elements: JSON.parse(JSON.stringify(this.elements)),
+            connections: JSON.parse(JSON.stringify(this.connections)),
+            elementIdCounter: this.elementIdCounter,
+            flowTitle: this.flowTitle,
+            canvasWidth: this.canvasWidth,
+            canvasHeight: this.canvasHeight,
+            zoomLevel: this.zoomLevel
+        };
+
+        if (this.historyIndex < this.history.length - 1) {
+            this.history = this.history.slice(0, this.historyIndex + 1);
+        }
+        this.history.push(snapshot);
+        if (this.history.length > 50) {
+            this.history.shift();
+        }
+        this.historyIndex = this.history.length - 1;
+    }
+
+    undo() {
+        if (this.historyIndex < 0) {
+            return;
+        }
+        this.isUndoing = true;
+        const snapshot = this.history[this.historyIndex];
+        this.historyIndex -= 1;
+
+        this.elements = JSON.parse(JSON.stringify(snapshot.elements));
+        this.connections = JSON.parse(JSON.stringify(snapshot.connections));
+        this.elementIdCounter = snapshot.elementIdCounter;
+        this.flowTitle = snapshot.flowTitle;
+        this.canvasWidth = snapshot.canvasWidth;
+        this.canvasHeight = snapshot.canvasHeight;
+        this.zoomLevel = snapshot.zoomLevel;
+        document.getElementById('flowTitle').value = this.flowTitle;
+
+        this.setupCanvas();
+        this.clearMultiSelection();
+        this.redraw();
+        this.debouncedSave();
+        this.isUndoing = false;
+    }
+
     saveToStorage(showNotification = false) {
         const flowData = {
             elements: this.elements,
@@ -1339,8 +1461,35 @@ class FlowCreator {
         this.showNotification('フローがエクスポートされました', 'success');
     }
 
+    exportCanvasAsPng() {
+        if (!this.flowTitle || this.flowTitle.trim().length === 0) {
+            alert('フロータイトルを入力してください');
+            return;
+        }
+        const exportCanvas = document.createElement('canvas');
+        exportCanvas.width = this.canvas.width;
+        exportCanvas.height = this.canvas.height;
+        const exportCtx = exportCanvas.getContext('2d');
+        
+        // Use a white background for readability
+        exportCtx.fillStyle = '#ffffff';
+        exportCtx.fillRect(0, 0, exportCanvas.width, exportCanvas.height);
+        exportCtx.drawImage(this.canvas, 0, 0);
+        
+        const dataUrl = exportCanvas.toDataURL('image/png');
+        const link = document.createElement('a');
+        link.href = dataUrl;
+        const safeTitle = (this.flowTitle || '').trim().replace(/[\\/:*?"<>|]/g, '').replace(/\s+/g, '-');
+        const baseName = safeTitle.length > 0 ? safeTitle : 'business-flow';
+        link.download = `${baseName}-${new Date().toISOString().split('T')[0]}.png`;
+        link.click();
+        
+        this.showNotification('キャンバスをPNGで保存しました', 'success');
+    }
+
     clearCanvas() {
         if (confirm('すべての要素を削除しますか？')) {
+            this.pushHistory();
             this.elements = [];
             this.connections = [];
             this.selectedElement = null;
@@ -1410,12 +1559,20 @@ class FlowCreator {
         input.style.position = 'absolute';
         // アイテムの位置にテキストボックスを配置
         const rect = this.canvas.getBoundingClientRect();
-        const elementX = rect.left + element.x;
-        const elementY = rect.top + element.y;
+        let elementX = rect.left + element.x;
+        let elementY = rect.top + element.y;
+        let elementWidth = Math.max(200, element.width);
+
+        if (element.type === 'actor') {
+            const boxHeight = 32;
+            elementX = rect.left + element.x + 8;
+            elementY = rect.top + element.y + element.height - boxHeight;
+            elementWidth = Math.max(200, element.width - 16);
+        }
         
         input.style.left = elementX + 'px';
         input.style.top = elementY + 'px';
-        input.style.width = Math.max(200, element.width) + 'px';
+        input.style.width = elementWidth + 'px';
         input.style.height = '30px';
         input.style.zIndex = '1000';
         input.style.padding = '5px';
@@ -1432,6 +1589,7 @@ class FlowCreator {
         input.select();
 
         const finishEdit = () => {
+            this.pushHistory();
             element.text = input.value;
             document.body.removeChild(input);
             this.isEditingText = false;
